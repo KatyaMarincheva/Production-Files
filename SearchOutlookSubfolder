@@ -1,0 +1,58 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Office.Interop.Outlook;
+
+namespace OutlookApp
+{
+    class OutlookApp
+    {
+        public static Application outlook;
+        static void Main(string[] args)
+        {
+            outlook = new Application();
+
+            // 1st option: using items.GetFirst(), items.GetNext();
+            SearchOutlookSubfolder();
+
+            // 2nd option: using LINQ
+            //MAPIFolder folder =
+            //    outlook
+            //    .GetNamespace("MAPI")
+            //    .GetDefaultFolder(OlDefaultFolders.olFolderInbox);
+
+            //IEnumerable<MailItem> mail =
+            //    folder.Folders["Alerts"]
+            //    .Items
+            //    .OfType<MailItem>()
+            //    .Select(m => m);
+
+            //foreach (var item in mail)
+            //{
+            //    Console.WriteLine(item.Subject);
+            //}
+        }
+
+        private static void SearchOutlookSubfolder()
+        {
+            MAPIFolder inbox = outlook.ActiveExplorer()
+                .Session
+                .GetDefaultFolder(OlDefaultFolders.olFolderInbox);
+            string oSubfolderName = "X";
+            Items items = inbox.Folders[oSubfolderName].Items;
+            MailItem mailItem = null;
+            object folderItem;
+
+            folderItem = items.GetFirst();
+            while (folderItem != null)
+            {
+                mailItem = folderItem as MailItem;
+                if (mailItem != null)
+                {
+                    Console.WriteLine(mailItem.Subject);
+                }
+                folderItem = items.GetNext();
+            }
+        }
+    }
+}
