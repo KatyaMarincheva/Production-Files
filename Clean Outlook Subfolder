@@ -1,0 +1,19 @@
+        private static void MoveToActioned()
+        {
+            string oSubfolderName = "folder1 name";
+            Items items = inbox.Folders[oSubfolderName].Items;
+            folderItem = items.GetFirst();
+
+            while (folderItem != null)
+            {
+                mailItem = folderItem as MailItem;
+                if (mailItem != null)
+                {
+                    mailItem.Move(inbox.Folders["folder2 name"]);
+
+                    items = inbox.Folders[oSubfolderName].Items;
+                }
+
+                folderItem = items.GetFirst();
+            }
+        }
