@@ -1,0 +1,300 @@
+using System;
+
+using System.Collections.Generic;
+
+using Microsoft.Office.Interop.Excel;
+
+using Microsoft.Office.Interop.Outlook;
+
+using System.Text.RegularExpressions;
+
+
+namespace OutlookApp
+
+{
+
+    class OutlookApp
+
+    {
+
+        private static int counter = 0;
+
+        private static string input = string.Empty;
+
+        private static string today = DateTime.Now.ToString("yyyy-MM-dd");
+
+        private static List<string> alert = new List<string>();
+
+        private static List<List<string>> alerts = new List<List<string>>();
+
+        private static string[] alertDetails = RxAlertDetails();
+
+        private static string[] head = GetHeadline();
+
+        private static Microsoft.Office.Interop.Excel.Application xlApp = new Microsoft.Office.Interop.Excel.Application();
+
+        private static Microsoft.Office.Interop.Outlook.Application outlook;
+
+        private static MailItem mailItem = null;
+
+        private static object folderItem;
+
+
+        static void Main(string[] args)
+
+        {
+
+            // get e-mail
+
+            Items items = GetSubfolderEmails();
+
+
+            //read e-mails
+
+            ReadEmails(items);
+
+
+            xlApp.Visible = true;
+
+
+            // create Excel worksheet
+
+            Worksheet ws = CreateXlWorksheet();
+
+
+            // write report to Excel
+
+            WriteToExcel(ws);
+
+
+            ws.Columns.AutoFit();
+
+        }
+
+
+        private static Items GetSubfolderEmails()
+
+        {
+
+            outlook = new Microsoft.Office.Interop.Outlook.Application();
+
+
+            MAPIFolder inbox = outlook
+
+                .ActiveExplorer()
+
+                .Session
+
+                .GetDefaultFolder(OlDefaultFolders
+
+                .olFolderInbox);
+
+
+            string oSubfolderName = "folder name";
+
+            Items items = inbox.Folders[oSubfolderName].Items;
+
+            return items;
+
+        }
+
+
+        private static void ReadEmails(Items items)
+
+        {
+
+            folderItem = items.GetFirst();
+
+
+            while (folderItem != null)
+
+            {
+
+                mailItem = folderItem as MailItem;
+
+                if (mailItem != null)
+
+                {
+
+                    input = mailItem.Body;
+
+
+                    ExtractAlertDetails();
+
+
+                    counter++;
+
+                }
+
+
+                folderItem = items.GetNext();
+
+                alerts.Add(alert);
+
+                alert = new List<string>();
+
+            }
+
+        }
+
+        private static void ExtractAlertDetails()
+
+        {
+
+            alert.Add((counter + 1).ToString());
+
+            for (int i = 0; i < alertDetails.Length; i++)
+
+            {
+
+                alert.Add(Regex.Match(input, alertDetails[i]).Groups[1].Value);
+
+            }
+
+        }
+
+
+        private static string[] RxAlertDetails()
+
+        {
+
+            return new string[]
+
+            {
+
+                @"column1 name\s+(\d{2}\w{3}\d{4}\s\d{2}:\d{2}:\d{2}\.\d{2})",
+
+                @"column2 name\s+(.+)",
+
+                @"column3 name\s+(\w+)",
+
+                @"column4 name\s+([^\s]+)",
+
+                @"column5 name\s+[^\s]+\s+(.+)",
+
+                @"column6 name\s+(\w+)",
+
+                @"column7 name\s+(.+)"
+
+            };
+
+        }
+
+
+        private static string[] GetHeadline()
+
+        {
+
+            return new string[]
+
+            {
+
+                "column1 name",
+
+                "column2 name",
+
+                "column3 name",
+
+                "column4 name",
+
+                "column5 name",
+
+                "column6 name",
+
+                "column7 name",
+
+                "column8 name"
+
+            };
+
+        }
+
+
+        private static Worksheet CreateXlWorksheet()
+
+        {
+
+            // create worksheet
+
+            Workbook wb = xlApp.Workbooks.Add(XlWBATemplate.xlWBATWorksheet);
+
+            Worksheet ws = (Worksheet)wb.Worksheets[1];
+
+            ws.Name = today;
+
+
+            // format title line
+
+            Range range = ws.Range["A1"];
+
+            range.Value = "Daily Alerts Report";
+
+            range.Style.Font.Size = 15;
+
+            range.VerticalAlignment = XlVAlign.xlVAlignCenter;
+
+            range.HorizontalAlignment = XlHAlign.xlHAlignCenter;
+
+            range.EntireRow.Font.Bold = true;
+
+            range.Interior.Color = XlRgbColor.rgbBlack;
+
+            range.Font.Color = XlRgbColor.rgbWhite;
+
+            Range aRange = ws.get_Range("A1", "H2");
+
+            aRange.Merge();
+
+
+            // format headline
+
+            Range bRange = ws.get_Range("A3", "H3");
+
+            bRange.Interior.Color = XlRgbColor.rgbBlack;
+
+            bRange.Font.Color = XlRgbColor.rgbWhite;
+
+            SetRow(bRange, head);
+
+            return ws;
+
+        }
+
+
+        private static void WriteToExcel(Worksheet ws)
+
+        {
+
+            for (int i = 0; i < alerts.Count; i++)
+
+            {
+
+                string AFormat = string.Format("A{0}", i + 4);
+
+                string HFormat = string.Format("H{0}", i + 4);
+
+                Range lRange = ws.get_Range(AFormat, HFormat);
+
+
+                SetRow(lRange, alerts[i].ToArray());
+
+            }
+
+        }
+
+        private static void SetRow(Range range, string[] data)
+
+        {
+
+            range.get_Resize(1, data.Length).Value2 = data;
+
+        }
+
+    }
+
+}
+
+
+　
+
+　
