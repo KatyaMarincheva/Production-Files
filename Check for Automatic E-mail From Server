@@ -40,6 +40,9 @@ namespace CheckForAlertMail
                 WriteToExcel(ws);
                 ws.Columns.AutoFit();
 
+                // saves current changes and closes Excel Workbook
+                SaveAndCloseWoorkbook();
+
                 // move the received e-mail to Actioned folder
                 MoveToActioned();
             }
@@ -48,6 +51,25 @@ namespace CheckForAlertMail
                 // if the automatic email from the server was not received - send email to inbox to warn 
                 SendEmail();
             }
+        }
+
+        private static void SaveAndCloseWoorkbook()
+        {
+            xlApp.DisplayAlerts = false;
+
+            string path = @"C:\Users\marinchk\Desktop\report1.xsls";
+            wb.SaveAs(path, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookNormal,
+Type.Missing, Type.Missing, Type.Missing, Type.Missing, Microsoft.Office.Interop.Excel.XlSaveAsAccessMode.xlExclusive,
+Type.Missing, Type.Missing, Type.Missing,
+Type.Missing, Type.Missing);
+            wb.Close(true, Type.Missing, Type.Missing);
+            ws = null;
+            wb = null;
+            xlApp.Quit();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
         private static bool EmailReceived()
