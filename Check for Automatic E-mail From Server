@@ -1,45 +1,67 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Excel = Microsoft.Office.Interop.Excel;
 using Outlook = Microsoft.Office.Interop.Outlook;
 
 namespace CheckForAlertMail
 {
-    class Program
+    class CheckForAlertMail
     {
+        #region Variables
+        // report related variables
         private static int counter = 0;
-        private static string input = string.Empty;
-        private static string today = DateTime.Now.ToString("yyyy-MM-dd");
-        private static List<string> alert = new List<string>();
-        private static List<List<string>> alerts = new List<List<string>>();
-        private static string[] head = GetHeadline();
-        private static Excel.Application xlApp = new Excel.Application();
+        private static string[] alert = new string[3];
+
+        // Outlook related variables
         private static Outlook.Application outlook = new Outlook.Application();
         private static Outlook.MAPIFolder folder;
-        private static Outlook.MailItem mailItem = null;
-        private static object folderItem = null;
-        private static Outlook.MailItem[] mail = null;
-        private static Excel.Workbook wb = xlApp.Workbooks.Add(Excel.XlWBATemplate.xlWBATWorksheet);
-        private static Excel.Worksheet ws = CreateXlWorksheet();
+        private static List<Outlook.MailItem> mail;
+        private static object folderItem;
+        private static Outlook.MailItem mailItem;
+        private static string oSubfolderName = "ABC";
+        public static string oSubfolderActionedName = "ABC Actioned";
 
-　
+        // Excel related variables
+        private static Excel.Application xlApp = new Excel.Application();
+        private static Excel.Workbook wb;
+        private static Excel.Worksheet ws;
+        private static Excel.Sheets oWorkSheets;
+        private static Excel.Range range;
+        private static int colCount;
+        private static int rowCount;
+        private static string today = DateTime.Now.ToString("yyyy-MM-dd");
+        private static string path = string.Format(@"C:\Users\marinchk\Desktop\ABC report {0}.xlsx", today);
+        private static string[] columnsNames = GetColumnsNames();
+        #endregion Variables
+
         static void Main(string[] args)
         {
             // check if alert email is received
             if (EmailReceived())
             {
-                xlApp.Visible = true;
-
                 // write to report email received time and checked time
                 WriteToReport(mail);
 
-                // write report to Excel
-                WriteToExcel(ws);
-                ws.Columns.AutoFit();
+                xlApp.Visible = true;
 
+                if (!System.IO.File.Exists(path))
+                {
+                    ws = CreateXlWorksheet();
+
+                    // write report to Excel
+                    WriteToExcel(ws);
+                    ws.Columns.AutoFit();
+                }
+                else
+                {
+                    OpenExcelWorkbook();
+
+                    // add next report to same Excel workbook
+                    AddTextToExcel(ws);
+                }
+
+                //Console.ReadLine();
                 // saves current changes and closes Excel Workbook
                 SaveAndCloseWoorkbook();
 
@@ -53,25 +75,8 @@ namespace CheckForAlertMail
             }
         }
 
-        private static void SaveAndCloseWoorkbook()
-        {
-            xlApp.DisplayAlerts = false;
-
-            string path = @"C:\Users\marinchk\Desktop\report1.xsls";
-            wb.SaveAs(path, Microsoft.Office.Interop.Excel.XlFileFormat.xlWorkbookNormal,
-Type.Missing, Type.Missing, Type.Missing, Type.Missing, Microsoft.Office.Interop.Excel.XlSaveAsAccessMode.xlExclusive,
-Type.Missing, Type.Missing, Type.Missing,
-Type.Missing, Type.Missing);
-            wb.Close(true, Type.Missing, Type.Missing);
-            ws = null;
-            wb = null;
-            xlApp.Quit();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-        }
-
+        #region Outlook
+        #region OutlookInput
         private static bool EmailReceived()
         {
             // access outlook inbox
@@ -82,33 +87,20 @@ Type.Missing, Type.Missing);
 
             // get mails from ABC folder
             mail =
-                folder.Folders["ABC"]
+                folder
+                .Folders[oSubfolderName]
                 .Items
                 .OfType<Outlook.MailItem>()
-                .Select(m => m).ToArray();
+                .Select(m => m).ToList();
 
-            return mail.Length == 1;
+            return mail.Count == 1;
         }
+        #endregion OutlookInput
 
-        private static void WriteToReport(Outlook.MailItem[] mail)
-        {
-            // write to report when the sever email was received and when it was checked
-            counter++;
-            alert.Add(counter.ToString());
-            alert.Add(mail[0].ReceivedTime.ToString());
-            alert.Add(DateTime.Now.ToString());
-            alerts.Add(alert);
-        }
-
+        #region OutlookOutput
         private static void MoveToActioned()
         {
-            // access outlook subfolder ABC
-            string oSubfolderName = "ABC";
-            folder =
-                outlook
-                .GetNamespace("MAPI")
-                .GetDefaultFolder(Outlook.OlDefaultFolders.olFolderInbox);
-
+            // access outlook subfolder ABC and get all emails
             Outlook.Items items = folder.Folders[oSubfolderName].Items;
             folderItem = items.GetFirst();
 
@@ -118,7 +110,7 @@ Type.Missing, Type.Missing);
                 mailItem = folderItem as Outlook.MailItem;
                 if (mailItem != null)
                 {
-                    mailItem.Move(folder.Folders["ABC Actioned"]);
+                    mailItem.Move(folder.Folders[oSubfolderActionedName]);
 
                     items = folder.Folders[oSubfolderName].Items;
                 }
@@ -127,8 +119,44 @@ Type.Missing, Type.Missing);
             }
         }
 
+        private static void SendEmail()
+        {
+            string subjectEmail = "TAO email NOT received!";
+            string bodyEmail = "TAO email NOT received!";
+            string emailAddress = "marincheva@hpe.com";
+
+            CreateEmailItem(subjectEmail, emailAddress, bodyEmail);
+        }
+
+        private static void CreateEmailItem(string subjectEmail,
+               string toEmail, string bodyEmail)
+        {
+            Outlook.MailItem eMail = (Outlook.MailItem)
+                    outlook.CreateItem(Outlook.OlItemType.olMailItem);
+            eMail.Subject = subjectEmail;
+            eMail.To = toEmail;
+            eMail.Body = bodyEmail;
+            eMail.Importance = Outlook.OlImportance.olImportanceHigh;
+            (eMail).Send();
+        }
+        #endregion OutlookOutput
+        #endregion Outlook
+
+        #region Report
+        private static void WriteToReport(List<Outlook.MailItem> mail)
+        {
+            // write to report when the sever email was received and when it was checked
+            counter++;
+            alert[0] = counter.ToString();
+            alert[1] = mail[0].ReceivedTime.ToString();
+            alert[2] = DateTime.Now.ToString();
+        }
+        #endregion Report
+
+        #region Excel
+        #region ExcelInput
         // this method provides the Excel worksheet columns names
-        private static string[] GetHeadline()
+        private static string[] GetColumnsNames()
         {
             return new string[]
             {
@@ -140,12 +168,13 @@ Type.Missing, Type.Missing);
 
         private static Excel.Worksheet CreateXlWorksheet()
         {
+            // create Excel workbook
+            wb = xlApp.Workbooks.Add(Excel.XlWBATemplate.xlWBATWorksheet);
             // create worksheet           
             Excel.Worksheet ws = (Excel.Worksheet)wb.Worksheets[1];
-            ws.Name = today;
 
             // format title line
-            Excel.Range range = ws.Range["A1"];
+            range = ws.Range["A1"];
             range.Value = "ABC Alerts Report";
             range.Style.Font.Size = 15;
             range.VerticalAlignment = Excel.XlVAlign.xlVAlignCenter;
@@ -160,46 +189,83 @@ Type.Missing, Type.Missing);
             Excel.Range bRange = ws.get_Range("A3", "C3");
             bRange.Interior.Color = Excel.XlRgbColor.rgbBlack;
             bRange.Font.Color = Excel.XlRgbColor.rgbWhite;
-            SetRow(bRange, head);
+            SetRow(bRange, columnsNames);
 
             return ws;
         }
 
+        private static void OpenExcelWorkbook()
+        {
+            wb = xlApp.Workbooks.Open(path, 0, false, 5, "", "", false, Microsoft.Office.Interop.Excel.XlPlatform.xlWindows, "", true, false, 0, true, false, false);
+
+            //Get all the sheets in the workbook
+            oWorkSheets = wb.Worksheets;
+            //Get the allready exists sheet
+            ws = (Excel.Worksheet)oWorkSheets[1];
+            range = ws.UsedRange;
+            colCount = range.Columns.Count;
+            rowCount = range.Rows.Count;
+        }
+        #endregion ExcelInput
+
+        #region ExcelOutput
         private static void WriteToExcel(Excel.Worksheet ws)
         {
-            for (int i = 0; i < alerts.Count; i++)
-            {
-                string AFormat = string.Format("A{0}", i + 4);
-                string HFormat = string.Format("C{0}", i + 4);
-                Excel.Range lRange = ws.get_Range(AFormat, HFormat);
+            string AFormat = string.Format("A{0}", +4);
+            string HFormat = string.Format("C{0}", +4);
+            Excel.Range lRange = ws.get_Range(AFormat, HFormat);
 
-                SetRow(lRange, alerts[i].ToArray());
-            }
+            SetRow(lRange, alert);
         }
+
+        private static void AddTextToExcel(Excel.Worksheet ws)
+        {
+            string AFormat = string.Format("A{0}", (rowCount + 1));
+            string HFormat = string.Format("C{0}", (rowCount + 1));
+            Excel.Range lRange = ws.get_Range(AFormat, HFormat);
+
+            SetRow(lRange, alert);
+        }
+
         private static void SetRow(Excel.Range range, string[] data)
         {
             range.get_Resize(1, data.Length).Value2 = data;
         }
+        #endregion ExcelOutput
 
-        private static void SendEmail()
+        #region ExcelClose
+        private static void SaveAndCloseWoorkbook()
         {
-            string subjectEmail = "TAO email NOT received!";
-            string bodyEmail = "TAO email NOT received!";
-            string emailAddress = "marincheva@hpe.com";
- 
-            CreateEmailItem(subjectEmail, emailAddress, bodyEmail);
-        }
+            // avoid "do you want to replace the existing file?" pop-up
+            xlApp.DisplayAlerts = false;
 
-        private static void CreateEmailItem(string subjectEmail,
-               string toEmail, string bodyEmail)
-        {
-        Outlook.MailItem eMail = (Outlook.MailItem)
-                outlook.CreateItem(Outlook.OlItemType.olMailItem);
-            eMail.Subject = subjectEmail;
-            eMail.To = toEmail;
-            eMail.Body = bodyEmail;
-            eMail.Importance = Outlook.OlImportance.olImportanceHigh;
-            (eMail).Send();
+            // save Excel workbook as
+            wb.SaveAs(path,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                Excel.XlSaveAsAccessMode.xlNoChange,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing,
+                Type.Missing);
+
+            // close Excel workbook
+            wb.Close(true, Type.Missing, Type.Missing);
+
+            // gradually quit the Excel Application
+            ws = null;
+            wb = null;
+            xlApp.Quit();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
+        #endregion ExcelClose
+        #endregion Excel
     }
 }
